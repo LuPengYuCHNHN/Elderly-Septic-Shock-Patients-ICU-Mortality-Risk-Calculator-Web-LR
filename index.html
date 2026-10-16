@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Elderly Septic Shock ICU Mortality Risk Calculator (Logistic Regression)</title>
+<style>
+        :root {
+            --primary:        #1e3a8a;
+            --primary-light:  #3b82f6;
+            --accent:         #0891b2;
+            --bg-body:        #f1f5f9;
+            --bg-card:        #ffffff;
+            --bg-soft:        #f8fafc;
+            --border:         #e2e8f0;
+            --border-strong:  #cbd5e1;
+            --text-primary:   #0f172a;
+            --text-secondary: #475569;
+            --text-muted:     #94a3b8;
+            --low:            #059669;
+            --low-bg:         #d1fae5;
+            --medium:         #d97706;
+            --medium-bg:      #fef3c7;
+            --high:           #dc2626;
+            --high-bg:        #fee2e2;
+            --shadow-sm:      0 1px 2px rgba(15, 23, 42, 0.04);
+            --shadow:         0 4px 12px rgba(15, 23, 42, 0.06);
+            --shadow-lg:      0 12px 32px rgba(15, 23, 42, 0.08);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        html { font-size: 15px; }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: var(--bg-body);
+            color: var(--text-primary);
+            line-height: 1.5;
+            min-height: 100vh;
+            padding: 24px 16px;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .container {
+            max-width: 1320px;
+            margin: 0 auto;
+            display: grid;
+            gap: 20px;
+        }
+
+        /* ============ Hero header ============ */
+        .hero {
+            background: linear-gradient(135deg, var(--primary) 0%, #0c2d6b 100%);
+            color: #fff;
+            border-radius: 16px;
+            padding: 28px 32px;
+            box-shadow: var(--shadow-lg);
+            position: relative;
+            overflow: hidden;
+        }
+        .hero::before {
+            content: '';
+            position: absolute;
+            top: -50%; right: -10%;
+            width: 380px; height: 380px;
+            background: radial-gradient(circle, rgba(59, 130, 246, 0.25) 0%, transparent 70%);
+            pointer-events: none;
+        }
+        .hero h1 {
+            font-size: 1.65rem;
+            font-weight: 600;
+            letter-spacing: -0.015em;
+            margin-bottom: 6px;
+            position: relative;
+        }
+        .hero .subtitle {
+            font-size: 0.95rem;
+            opacity: 0.85;
+            font-weight: 400;
+            position: relative;
+        }
+        .metrics {
+            margin-top: 22px;
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+            position: relative;
+        }
+        .metric {
+            background: rgba(255, 255, 255, 0.10);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            padding: 12px 16px;
+            border-radius: 10px;
+        }
+        .metric .label {
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            opacity: 0.75;
+            margin-bottom: 4px;
+        }
+        .metric .value {
+            font-family: 'JetBrains Mono', 'SF Mono', Consolas, monospace;
+            font-size: 1.25rem;
+            font-weight: 600;
+        }
+
+        /* ============ Main grid ============ */
+        .main-grid {
+            display: grid;
+            grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr);
+            gap: 20px;
+            align-items: start;
+        }
+
+        /* ============ Inputs panel ============ */
+        .panel {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            box-shadow: var(--shadow-sm);
+            padding: 22px;
+        }
+        .panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 18px;
+            padding-bottom: 14px;
+            border-bottom: 1px solid var(--border);
+        }
+        .panel-title {
+            font-size: 1.05rem;
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+        .panel-title .accent-bar {
+            display: inline-block;
+            width: 4px; height: 18px;
+            background: var(--primary);
+            border-radius: 2px;
+            vertical-align: -3px;
+            margin-right: 8px;
+        }
+
+        .preset-buttons {
+            display: flex;
+            gap: 6px;
+        }
+        .btn {
+            font-family: inherit;
+            font-size: 0.82rem;
+            font-weight: 500;
+            padding: 6px 12px;
+            border-radius: 6px;
+            border: 1px solid var(--border-strong);
+            background: var(--bg-soft);
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.15s ease;
+            white-space: nowrap;
+        }
+        .btn:hover {
+            background: var(--primary);
+            color: #fff;
+            border-color: var(--primary);
+            transform: translateY(-1px);
+        }
+        .btn.btn-primary {
+            background: var(--primary);
+            color: #fff;
+            border-color: var(--primary);
+        }
+        .btn.btn-primary:hover {
+            background: #0c2d6b;
+        }
+
+        /* Feature groups */
+        .feature-group {
+            margin-bottom: 22px;
+        }
+        .feature-group:last-child { margin-bottom: 0; }
+        .group-label {
+            font-size: 0.72rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            margin-bottom: 10px;
+            padding-left: 4px;
+        }
+        .feature-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+            gap: 12px;
+        }
+
+        .feature {
+            background: var(--bg-soft);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 14px 16px;
+            transition: border-color 0.15s ease;
+        }
+        .feature:focus-within {
+            border-color: var(--primary-light);
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
+        }
+        .feature-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            margin-bottom: 8px;
+            gap: 8px;
+        }
+        .feature-name {
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            flex: 1;
+        }
+        .feature-range {
+            font-size: 0.72rem;
+            color: var(--text-muted);
+            font-family: 'JetBrains Mono', monospace;
+            white-space: nowrap;
+        }
+        .feature-body {
+            display: grid;
+            grid-template-columns: 1fr auto;
+            gap: 10px;
+            align-items: center;
+        }
+        .slider {
+            width: 100%;
+            height: 4px;
+            border-radius: 2px;
+            background: var(--border);
+            outline: none;
+            -webkit-appearance: none;
+            appearance: none;
+            cursor: pointer;
+        }
+        .slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 16px; height: 16px;
+            border-radius: 50%;
+            background: var(--primary);
+            cursor: pointer;
+            box-shadow: 0 1px 4px rgba(30, 58, 138, 0.3);
+            transition: transform 0.1s ease;
+        }
+        .slider::-webkit-slider-thumb:hover { transform: scale(1.15); }
+        .slider::-moz-range-thumb {
+            width: 16px; height: 16px;
+            border-radius: 50%;
+            background: var(--primary);
+            cursor: pointer;
+            border: none;
+            box-shadow: 0 1px 4px rgba(30, 58, 138, 0.3);
+        }
+        .num-input {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.92rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            background: #fff;
+            border: 1px solid var(--border-strong);
+            border-radius: 6px;
+            padding: 5px 8px;
+            width: 90px;
+            text-align: right;
+            transition: border-color 0.15s ease;
+        }
+        .num-input:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+        .feature-unit {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+
+        /* ============ Result panel (sticky on desktop) ============ */
+        .result-panel {
+            position: sticky;
+            top: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+
+        .risk-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            box-shadow: var(--shadow);
+            padding: 24px;
+            text-align: center;
+        }
+        .gauge-wrap {
+            position: relative;
+            width: 220px;
+            height: 220px;
+            margin: 0 auto 12px;
+        }
+        .gauge-svg {
+            transform: rotate(-90deg);
+            width: 100%; height: 100%;
+        }
+        .gauge-bg {
+            fill: none;
+            stroke: var(--border);
+            stroke-width: 14;
+        }
+        .gauge-arc {
+            fill: none;
+            stroke: var(--low);
+            stroke-width: 14;
+            stroke-linecap: round;
+            transition: stroke-dasharray 0.5s ease, stroke 0.4s ease;
+        }
+        .gauge-label {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        .gauge-value {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 2.6rem;
+            font-weight: 700;
+            color: var(--text-primary);
+            line-height: 1;
+        }
+        .gauge-unit {
+            font-size: 0.88rem;
+            color: var(--text-secondary);
+            margin-top: 4px;
+            font-weight: 500;
+        }
+
+        .risk-pill {
+            display: inline-block;
+            padding: 6px 14px;
+            border-radius: 100px;
+            font-size: 0.82rem;
+            font-weight: 600;
+            letter-spacing: 0.02em;
+            margin-top: 4px;
+        }
+        .risk-pill.low    { background: var(--low-bg);    color: var(--low); }
+        .risk-pill.medium { background: var(--medium-bg); color: var(--medium); }
+        .risk-pill.high   { background: var(--high-bg);   color: var(--high); }
+        .risk-pill.idle   { background: var(--bg-soft);   color: var(--text-muted); }
+
+        .advice {
+            background: var(--bg-soft);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 16px;
+        }
+        .advice-title {
+            font-size: 0.78rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            margin-bottom: 8px;
+        }
+        .advice-body {
+            font-size: 0.92rem;
+            color: var(--text-secondary);
+            line-height: 1.6;
+        }
+
+        .actions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+        .actions .btn {
+            flex: 1;
+            min-width: 100px;
+            padding: 10px 14px;
+            font-size: 0.88rem;
+        }
+
+        /* ============ Status toast ============ */
+        .toast {
+            position: fixed;
+            bottom: 24px; left: 50%;
+            transform: translateX(-50%) translateY(120%);
+            background: var(--text-primary);
+            color: #fff;
+            padding: 10px 18px;
+            border-radius: 100px;
+            font-size: 0.85rem;
+            box-shadow: var(--shadow-lg);
+            transition: transform 0.3s ease;
+            z-index: 1000;
+            pointer-events: none;
+        }
+        .toast.show { transform: translateX(-50%) translateY(0); }
+
+        /* ============ Responsive ============ */
+        @media (max-width: 980px) {
+            .main-grid { grid-template-columns: 1fr; }
+            .result-panel { position: static; }
+            .metrics { grid-template-columns: repeat(2, 1fr); }
+        }
+        @media (max-width: 560px) {
+            body { padding: 14px 10px; }
+            .hero { padding: 22px 18px; }
+            .hero h1 { font-size: 1.3rem; }
+            .panel { padding: 16px; }
+            .panel-header { flex-direction: column; align-items: stretch; gap: 12px; }
+            .preset-buttons { flex-wrap: wrap; }
+            .preset-buttons .btn { flex: 1 1 auto; }
+            .feature-grid { grid-template-columns: 1fr; }
+            .gauge-wrap { width: 180px; height: 180px; }
+            .gauge-value { font-size: 2.2rem; }
+        }
+
+        /* Print */
+        @media print {
+            body { background: #fff; padding: 0; }
+            .actions, .preset-buttons, .toast, .hero::before { display: none; }
+            .hero { color: var(--primary); background: #fff; box-shadow: none; }
+            .container { gap: 12px; }
+            .panel, .risk-card { box-shadow: none; border: 1px solid #999; }
+        }
+    
+.feature.out{border-color:var(--medium);}
+.warn{display:none;color:var(--medium);font-size:0.72rem;margin-top:4px;font-weight:600;}
+.feature.out .warn{display:block;}
+.note{margin-top:10px;font-size:0.8rem;opacity:0.85;}
+.contrib-row{display:grid;grid-template-columns:150px 1fr 52px;align-items:center;gap:8px;font-size:0.78rem;margin:4px 0;}
+.contrib-track{position:relative;height:8px;background:#eef2f7;border-radius:4px;}
+.contrib-track .mid{position:absolute;left:50%;top:-2px;bottom:-2px;width:1px;background:#94a3b8;}
+.contrib-bar{position:absolute;top:0;height:8px;border-radius:4px;}
+.contrib-val{text-align:right;font-family:'JetBrains Mono',Consolas,monospace;}
+.disclaimer{text-align:center;font-size:0.75rem;color:#64748b;margin:18px 0 6px;}
+@media print{.preset-buttons,.actions{display:none;}}
+</style>
+</head>
+<body>
+<div class="container">
+  <header class="hero">
+    <h1>Elderly Septic Shock ICU Mortality Risk Calculator</h1>
+    <p class="subtitle">Logistic regression · nine variables from the first 24&nbsp;h of ICU admission · externally validated on eICU-CRD v2.0</p>
+    <div class="metrics">
+      <div class="metric"><div class="label">Model</div><div class="value" style="font-size:0.95rem">Logistic regression</div></div>
+      <div class="metric"><div class="label">Internal AUC</div><div class="value">0.742</div></div>
+      <div class="metric"><div class="label">External AUC</div><div class="value">0.743</div></div>
+      <div class="metric"><div class="label">External Brier</div><div class="value">0.147</div></div>
+    </div>
+  </header>
+  <div class="main-grid">
+    <section class="panel">
+      <div class="panel-header">
+        <div class="panel-title"><span class="accent-bar"></span>Clinical parameters (first 24&nbsp;h)</div>
+        <div class="preset-buttons">
+          <button type="button" class="btn" onclick="loadPreset('low')">Low-risk example</button>
+          <button type="button" class="btn" onclick="loadPreset('high')">High-risk example</button>
+          <button type="button" class="btn" onclick="resetDefaults()">Reset</button>
+        </div>
+      </div>
+      <div id="feature-container"></div>
+    </section>
+    <aside class="result-panel">
+      <div class="risk-card">
+        <div class="gauge-wrap">
+          <svg class="gauge-svg" viewBox="0 0 100 100" aria-hidden="true">
+            <circle class="gauge-bg" cx="50" cy="50" r="42"/>
+            <circle class="gauge-arc" id="gauge-arc" cx="50" cy="50" r="42" stroke-dasharray="0 264" pathLength="264"/>
+          </svg>
+          <div class="gauge-label">
+            <div class="gauge-value" id="risk-value">—</div>
+            <div class="gauge-unit">predicted ICU mortality</div>
+          </div>
+        </div>
+      </div>
+      <div class="advice">
+        <div class="advice-title">Contribution to log-odds</div>
+        <div id="contrib"></div>
+      </div>
+      <div class="actions">
+        <button type="button" class="btn" onclick="copySummary()">Copy summary</button>
+        <button type="button" class="btn" onclick="window.print()">Print</button>
+      </div>
+    </aside>
+  </div>
+  <div class="disclaimer">For research and decision support only; does not replace clinical judgement.</div>
+</div>
+<div class="toast" id="toast"></div>
+<script>
+// Locked logistic regression (lr_model_params.json, 2026-05-11): C = 1.0, L2, lbfgs; standardised predictors.
+const INTERCEPT = -1.1832511680759292;
+const FEATURE_ORDER = ["heart_rate_bpm", "sofa", "ptt_sec", "urineoutput_24hr_ml", "lods", "sapsii", "rdw_pct", "pco2_mmhg", "icu_to_sepsis_hours"];
+const M = {
+ "heart_rate_bpm": {
+  "beta": 0.17149914871630692,
+  "mean": 90.75826914770164,
+  "sd": 20.717965712544057,
+  "min": 32,
+  "max": 195
+ },
+ "sofa": {
+  "beta": 0.30016609702242775,
+  "mean": 8.142462509865824,
+  "sd": 3.5141820593344,
+  "min": 1,
+  "max": 22
+ },
+ "ptt_sec": {
+  "beta": 0.2166340753087356,
+  "mean": 40.130629819562266,
+  "sd": 22.56317402708928,
+  "min": 18.4,
+  "max": 150
+ },
+ "urineoutput_24hr_ml": {
+  "beta": -0.24017112957129788,
+  "mean": 1249.7420018023267,
+  "sd": 968.1850697223373,
+  "min": 0,
+  "max": 6318
+ },
+ "lods": {
+  "beta": 0.483587538680602,
+  "mean": 7.234411996842936,
+  "sd": 3.0729591358785617,
+  "min": 0,
+  "max": 20
+ },
+ "sapsii": {
+  "beta": 0.14702627127104861,
+  "mean": 51.224940805051304,
+  "sd": 13.873907641195858,
+  "min": 21,
+  "max": 115
+ },
+ "rdw_pct": {
+  "beta": 0.20666117631856692,
+  "mean": 16.132754380087864,
+  "sd": 2.5551077333926338,
+  "min": 11.3,
+  "max": 28.1
+ },
+ "pco2_mmhg": {
+  "beta": 0.26172913608182496,
+  "mean": 42.18935563184146,
+  "sd": 11.198846289894028,
+  "min": 14,
+  "max": 129
+ },
+ "icu_to_sepsis_hours": {
+  "beta": 0.2524083404187944,
+  "mean": 3.722391585547663,
+  "sd": 7.865783327795532,
+  "min": 0,
+  "max": 71
+ }
+};
+const UI = {
+ heart_rate_bpm:      {label:"Heart rate", unit:"bpm", normal:"60–100", dec:0},
+ sofa:                {label:"SOFA", unit:"points", normal:"≥ 2 = organ dysfunction", dec:0},
+ lods:                {label:"LODS", unit:"points", normal:"0 = no dysfunction", dec:0},
+ sapsii:              {label:"SAPS II", unit:"points", normal:"higher = more severe", dec:0},
+ urineoutput_24hr_ml: {label:"24-h urine output", unit:"mL", normal:"oliguria < 500", dec:0},
+ pco2_mmhg:           {label:"PCO₂", unit:"mmHg", normal:"35–45", dec:1},
+ rdw_pct:             {label:"RDW", unit:"%", normal:"11.5–14.5", dec:1},
+ ptt_sec:             {label:"aPTT", unit:"s", normal:"25–35", dec:1},
+ icu_to_sepsis_hours: {label:"ICU admission-to-sepsis-onset interval", unit:"h", normal:"", dec:1}
+};
+const GROUPS = [
+ {title:"Organ-failure scores", f:["lods","sofa","sapsii"]},
+ {title:"Haemodynamics", f:["heart_rate_bpm"]},
+ {title:"Renal", f:["urineoutput_24hr_ml"]},
+ {title:"Blood gas", f:["pco2_mmhg"]},
+ {title:"Haematology · coagulation", f:["rdw_pct","ptt_sec"]},
+ {title:"Temporal", f:["icu_to_sepsis_hours"]}
+];
+const PRESETS = { // illustrative profiles, not real patients
+ low:  {heart_rate_bpm:78, sofa:3, ptt_sec:30, urineoutput_24hr_ml:1800, lods:2, sapsii:38, rdw_pct:13.5, pco2_mmhg:40, icu_to_sepsis_hours:2},
+ high: {heart_rate_bpm:122, sofa:12, ptt_sec:65, urineoutput_24hr_ml:280, lods:11, sapsii:76, rdw_pct:19.2, pco2_mmhg:55, icu_to_sepsis_hours:12}
+};
+const fmt=(v,d)=>Number.isFinite(v)?(d>0?v.toFixed(d):Math.round(v).toString()):'';
+function card(f){
+ const m=M[f],u=UI[f];
+ return `<div class="feature" id="card_${f}">
+  <div class="feature-head"><span class="feature-name">${u.label}</span><span class="feature-range">${fmt(m.min,u.dec)} – ${fmt(m.max,u.dec)}</span></div>
+  <div class="feature-body">
+   <input type="range" class="slider" id="${f}" min="${m.min}" max="${m.max}" step="${u.dec>0?Math.pow(10,-u.dec):1}" value="${m.mean}" oninput="fromSlider('${f}')" aria-label="${u.label}">
+   <input type="number" class="num-input" id="${f}_num" step="${u.dec>0?Math.pow(10,-u.dec):1}" value="${fmt(m.mean,u.dec)}" oninput="fromNum('${f}')" aria-label="${u.label} value">
+  </div>
+  <div class="feature-unit"><strong>${u.unit}</strong>${u.normal?' · normal: '+u.normal:''}</div>
+  <div class="warn">Outside development-cohort range</div>
+ </div>`;
+}
+function render(){
+ document.getElementById('feature-container').innerHTML=GROUPS.map(g=>`<div class="feature-group"><div class="group-label">${g.title}</div><div class="feature-grid">${g.f.map(card).join('')}</div></div>`).join('');
+}
+function val(f){return parseFloat(document.getElementById(f+'_num').value);}
+function fromSlider(f){document.getElementById(f+'_num').value=fmt(parseFloat(document.getElementById(f).value),UI[f].dec);update();}
+function fromNum(f){const v=val(f);if(Number.isFinite(v))document.getElementById(f).value=Math.max(M[f].min,Math.min(M[f].max,v));update();}
+function setAll(p){for(const f of FEATURE_ORDER){document.getElementById(f+'_num').value=fmt(p[f],UI[f].dec);document.getElementById(f).value=p[f];}update();}
+function loadPreset(n){setAll(PRESETS[n]);toast(n==='low'?'Low-risk example loaded':'High-risk example loaded');}
+function resetDefaults(){const p={};for(const f of FEATURE_ORDER)p[f]=M[f].mean;setAll(p);toast('Reset to development-cohort means');}
+function predict(x){let z=INTERCEPT;const c={};for(const f of FEATURE_ORDER){c[f]=M[f].beta*(x[f]-M[f].mean)/M[f].sd;z+=c[f];}return {p:1/(1+Math.exp(-z)),c};}
+function update(){
+ const x={};let ok=true;
+ for(const f of FEATURE_ORDER){const v=val(f);x[f]=v;if(!Number.isFinite(v))ok=false;
+  document.getElementById('card_'+f).classList.toggle('out',Number.isFinite(v)&&(v<M[f].min||v>M[f].max));}
+ const arc=document.getElementById('gauge-arc');
+ if(!ok){document.getElementById('risk-value').textContent='—';arc.setAttribute('stroke-dasharray','0 264');document.getElementById('contrib').innerHTML='';return;}
+ const r=predict(x);
+ document.getElementById('risk-value').textContent=(r.p*100).toFixed(1)+'%';
+ arc.setAttribute('stroke-dasharray',`${(r.p*264).toFixed(1)} 264`);arc.style.stroke='var(--primary-light)';
+ const mx=Math.max(0.25,...Object.values(r.c).map(Math.abs));
+ document.getElementById('contrib').innerHTML=FEATURE_ORDER.slice().sort((a,b)=>Math.abs(r.c[b])-Math.abs(r.c[a])).map(f=>{
+  const v=r.c[f],w=Math.abs(v)/mx*50,col=v>=0?'var(--high)':'var(--low)';
+  return `<div class="contrib-row"><span>${UI[f].label==='ICU admission-to-sepsis-onset interval'?'Onset interval':UI[f].label}</span><div class="contrib-track"><div class="mid"></div><div class="contrib-bar" style="${v>=0?'left:50%':'right:50%'};width:${w}%;background:${col}"></div></div><span class="contrib-val">${Math.abs(v)<0.005?"":(v>0?"+":"−")}${Math.abs(v).toFixed(2)}</span></div>`;}).join('');
+}
+let tt=null;function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');clearTimeout(tt);tt=setTimeout(()=>t.classList.remove('show'),2000);}
+function copySummary(){
+ const L=['ICU mortality risk calculator (logistic regression)'];
+ for(const f of FEATURE_ORDER)L.push(`${UI[f].label}: ${document.getElementById(f+'_num').value} ${UI[f].unit}`);
+ L.push('Predicted ICU mortality: '+document.getElementById('risk-value').textContent);
+ navigator.clipboard.writeText(L.join('\n')).then(()=>toast('Summary copied'),()=>toast('Copy failed'));
+}
+window.addEventListener('DOMContentLoaded',()=>{render();const p={};for(const f of FEATURE_ORDER)p[f]=M[f].mean;setAll(p);});
+</script>
+</body>
+</html>
